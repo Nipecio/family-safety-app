@@ -272,7 +272,7 @@ export default function FamilySafetyApp() {
       <div className="min-h-screen bg-slate-900 text-slate-50">
         <div className="container max-w-4xl mx-auto p-5">
           <div className="text-center mb-10">
-            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold mb-3 text-indigo-400 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text [&:not(:has(.gradient-support))]:text-indigo-400 [background-clip:text] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] [&:not([style*='-webkit-text-fill-color'])]:text-indigo-400">
               Family Safety
             </h1>
             <p className="text-lg text-slate-300">Keep your family connected and safe</p>
@@ -351,7 +351,7 @@ export default function FamilySafetyApp() {
     <div className="min-h-screen bg-slate-900 text-slate-50">
       <div className="container max-w-4xl mx-auto p-5">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold mb-3 text-indigo-400 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text [&:not(:has(.gradient-support))]:text-indigo-400 [background-clip:text] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] [&:not([style*='-webkit-text-fill-color'])]:text-indigo-400">
             Family Safety
           </h1>
           <p className="text-lg text-slate-300">Keep your family connected and safe</p>
