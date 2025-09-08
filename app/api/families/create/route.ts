@@ -1,53 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { families } from "@/lib/families-store"
-
-// In-memory storage (in production, use a real database)
-// const families: Record<
-//   string,
-//   {
-//     password: string
-//     members: Array<{
-//       id: number
-//       name: string
-//       isOnline: boolean
-//       location: {
-//         lat: number
-//         lng: number
-//         address: string
-//         timestamp: string
-//       } | null
-//     }>
-//   }
-// > = {
-//   // Demo families
-//   smiths: {
-//     password: "family123",
-//     members: [
-//       {
-//         id: 1,
-//         name: "John Smith",
-//         isOnline: true,
-//         location: {
-//           lat: 40.7128,
-//           lng: -74.006,
-//           address: "New York, NY",
-//           timestamp: new Date().toISOString(),
-//         },
-//       },
-//       {
-//         id: 2,
-//         name: "Sarah Smith",
-//         isOnline: true,
-//         location: {
-//           lat: 40.7589,
-//           lng: -73.9851,
-//           address: "Times Square, NY",
-//           timestamp: new Date().toISOString(),
-//         },
-//       },
-//     ],
-//   },
-// }
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,38 +9,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Please fill in all fields" }, { status: 400 })
     }
 
-    if (families[familyName]) {
+    if (password.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+
+    // Check if family name already exists
+    const { data: existingFamily } = await supabase.from("families").select("id").eq("name", familyName).single()
+
+    if (existingFamily) {
       return NextResponse.json(
         { error: "Family name already exists. Please choose a different name." },
         { status: 400 },
       )
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
+    // Create new family
+    const { data: family, error: familyError } = await supabase
+      .from("families")
+      .insert({
+        name: familyName,
+        password: password,
+      })
+      .select()
+      .single()
+
+    if (familyError) {
+      throw familyError
     }
 
-    // Create new family
-    families[familyName] = {
-      password,
-      members: [
-        {
-          id: Date.now(),
-          name: userName,
-          isOnline: true,
-          location: null,
-        },
-      ],
+    // Add the creator as the first family member
+    const { data: member, error: memberError } = await supabase
+      .from("family_members")
+      .insert({
+        family_id: family.id,
+        name: userName,
+        is_sharing_location: false,
+      })
+      .select()
+      .single()
+
+    if (memberError) {
+      throw memberError
     }
 
     return NextResponse.json({
       success: true,
       family: {
         name: familyName,
-        members: families[familyName].members,
+        members: [
+          {
+            id: member.id,
+            name: member.name,
+            isOnline: true,
+            location: null,
+          },
+        ],
       },
     })
   } catch (error) {
+    console.error("Create family error:", error)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
   }
 }

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { families } from "@/lib/families-store"
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,22 +9,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const family = families[familyName]
-    if (!family) {
+    const supabase = await createClient()
+
+    // Find family by name
+    const { data: family, error: familyError } = await supabase
+      .from("families")
+      .select("id")
+      .eq("name", familyName)
+      .single()
+
+    if (familyError || !family) {
       return NextResponse.json({ error: "Family not found" }, { status: 404 })
     }
 
-    const member = family.members.find((m) => m.name === userName)
-    if (!member) {
-      return NextResponse.json({ error: "Member not found" }, { status: 404 })
-    }
+    // Remove member location by setting coordinates to null and sharing to false
+    const { error: updateError } = await supabase
+      .from("family_members")
+      .update({
+        latitude: null,
+        longitude: null,
+        is_sharing_location: false,
+        last_updated: new Date().toISOString(),
+      })
+      .eq("family_id", family.id)
+      .eq("name", userName)
 
-    // Remove member location
-    member.location = null
-    member.isOnline = false
+    if (updateError) {
+      throw updateError
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error("Remove location error:", error)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
   }
 }

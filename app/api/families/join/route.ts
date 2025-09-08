@@ -1,53 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { families } from "@/lib/families-store"
-
-// In-memory storage (in production, use a real database)
-// const families: Record<
-//   string,
-//   {
-//     password: string
-//     members: Array<{
-//       id: number
-//       name: string
-//       isOnline: boolean
-//       location: {
-//         lat: number
-//         lng: number
-//         address: string
-//         timestamp: string
-//       } | null
-//     }>
-//   }
-// > = {
-//   // Demo families
-//   smiths: {
-//     password: "family123",
-//     members: [
-//       {
-//         id: 1,
-//         name: "John Smith",
-//         isOnline: true,
-//         location: {
-//           lat: 40.7128,
-//           lng: -74.006,
-//           address: "New York, NY",
-//           timestamp: new Date().toISOString(),
-//         },
-//       },
-//       {
-//         id: 2,
-//         name: "Sarah Smith",
-//         isOnline: true,
-//         location: {
-//           lat: 40.7589,
-//           lng: -73.9851,
-//           address: "Times Square, NY",
-//           timestamp: new Date().toISOString(),
-//         },
-//       },
-//     ],
-//   },
-// }
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,8 +9,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Please fill in all fields" }, { status: 400 })
     }
 
-    const family = families[familyName]
-    if (!family) {
+    const supabase = await createClient()
+
+    // Find family by name and verify password
+    const { data: family, error: familyError } = await supabase
+      .from("families")
+      .select("id, name, password")
+      .eq("name", familyName)
+      .single()
+
+    if (familyError || !family) {
       return NextResponse.json({ error: "Family not found" }, { status: 404 })
     }
 
@@ -66,25 +26,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Incorrect password" }, { status: 401 })
     }
 
+    // Check if user is already a member
+    const { data: existingMember } = await supabase
+      .from("family_members")
+      .select("id")
+      .eq("family_id", family.id)
+      .eq("name", userName)
+      .single()
+
     // Add user to family if not already present
-    const existingUser = family.members.find((m) => m.name === userName)
-    if (!existingUser) {
-      family.members.push({
-        id: Date.now(),
+    if (!existingMember) {
+      const { error: memberError } = await supabase.from("family_members").insert({
+        family_id: family.id,
         name: userName,
-        isOnline: true,
-        location: null,
+        is_sharing_location: false,
       })
+
+      if (memberError) {
+        throw memberError
+      }
     }
+
+    // Get all family members
+    const { data: members, error: membersError } = await supabase
+      .from("family_members")
+      .select("id, name, latitude, longitude, is_sharing_location, last_updated")
+      .eq("family_id", family.id)
+
+    if (membersError) {
+      throw membersError
+    }
+
+    // Format members for frontend
+    const formattedMembers = members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      isOnline: true,
+      location:
+        member.latitude && member.longitude
+          ? {
+              lat: Number.parseFloat(member.latitude),
+              lng: Number.parseFloat(member.longitude),
+              address: `${member.latitude}, ${member.longitude}`,
+              timestamp: member.last_updated || new Date().toISOString(),
+            }
+          : null,
+    }))
 
     return NextResponse.json({
       success: true,
       family: {
         name: familyName,
-        members: family.members,
+        members: formattedMembers,
       },
     })
   } catch (error) {
+    console.error("Join family error:", error)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
   }
 }
