@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Family Safety - Location Sharing</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        min-height: 100vh;
+        color: #f8fafc;
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+        color: #f8fafc;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .header p {
+        font-size: 1.1rem;
+        opacity: 0.8;
+        color: #cbd5e1;
+      }
+
+      .card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 24px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+      }
+
+      .login-section {
+        max-width: 420px;
+        margin: 0 auto;
+      }
+
+      .form-group {
+        margin-bottom: 24px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #e2e8f0;
+        font-size: 14px;
+      }
+
+      input {
+        width: 100%;
+        padding: 14px 16px;
+        border: 2px solid #475569;
+        border-radius: 12px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+
+      input::placeholder {
+        color: #64748b;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        padding: 14px 28px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-bottom: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn-secondary {
+        background: #475569;
+        color: #f8fafc;
+      }
+
+      .btn-secondary:hover {
+        background: #64748b;
+        box-shadow: 0 8px 25px rgba(71, 85, 105, 0.4);
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      }
+
+      .btn-danger:hover {
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+      }
+
+      .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      }
+
+      .btn-success:hover {
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+      }
+
+      .family-members {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 24px;
+        margin-top: 24px;
+      }
+
+      .member-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        border-left: 4px solid #6366f1;
+        transition: all 0.3s ease;
+      }
+
+      .member-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      }
+
+      .member-info h3 {
+        color: #f8fafc;
+        margin-bottom: 12px;
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .member-status {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 10px;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+      }
+
+      .status-online {
+        background: #10b981;
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+      }
+
+      .status-offline {
+        background: #ef4444;
+        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+      }
+
+      .location-info {
+        color: #94a3b8;
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+
+      .permission-section {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 24px;
+        margin: 24px 0;
+      }
+
+      .permission-section h3 {
+        color: #f8fafc;
+        margin-bottom: 16px;
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .permission-text {
+        color: #cbd5e1;
+        margin-bottom: 16px;
+        line-height: 1.6;
+      }
+
+      .your-info {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border: 1px solid #6366f1;
+        color: #f8fafc;
+      }
+
+      .your-info h3 {
+        color: #f8fafc;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .error {
+        color: #f87171;
+        font-size: 14px;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: rgba(248, 113, 113, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(248, 113, 113, 0.2);
+      }
+
+      .success {
+        color: #34d399;
+        font-size: 14px;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: rgba(52, 211, 153, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(52, 211, 153, 0.2);
+      }
+
+      .map-container {
+        height: 320px;
+        background: #0f172a;
+        border-radius: 12px;
+        margin-top: 16px;
+        border: 1px solid #334155;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .custom-marker {
+        background: #ef4444;
+        border: 3px solid #f8fafc;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      .location-sharing-status {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 16px 0;
+      }
+
+      .sharing-active {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.3);
+      }
+
+      /* Added loading state styles */
+      .loading {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      /* Added better focus states */
+      .btn:focus-visible {
+        outline: 2px solid #6366f1;
+        outline-offset: 2px;
+      }
+
+      /* Added responsive improvements */
+      @media (max-width: 768px) {
+        .container {
+          padding: 16px;
+        }
+        
+        .header h1 {
+          font-size: 2rem;
+        }
+        
+        .family-members {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <!-- Removed emoji and updated title -->
+        <h1>Family Safety</h1>
+        <p>Keep your family connected and safe</p>
+      </div>
+
+      <!-- Login Section -->
+      <div id="loginSection" class="card login-section">
+        <div id="loginForm">
+          <h2 style="text-align: center; margin-bottom: 25px">
+            Family Account Access
+          </h2>
+          <div class="form-group">
+            <label for="familyName">Family Name:</label>
+            <input
+              type="text"
+              id="familyName"
+              placeholder="Enter your family name"
+            />
+          </div>
+          <div class="form-group">
+            <label for="userName">Your Name:</label>
+            <input type="text" id="userName" placeholder="Enter your name" />
+          </div>
+          <div class="form-group">
+            <label for="password">Family Password:</label>
+            <input
+              type="password"
+              id="password"
+              placeholder="Enter family password"
+            />
+          </div>
+          <button class="btn" onclick="joinFamily()">
+            Join Existing Family
+          </button>
+          <button class="btn btn-secondary" onclick="createFamily()">
+            Create New Family
+          </button>
+          <div id="errorMessage" class="error hidden"></div>
+          <div id="successMessage" class="success hidden"></div>
+        </div>
+      </div>
+
+      <!-- Main Dashboard -->
+      <div id="dashboard" class="card hidden">
+        <h2>Family Dashboard</h2>
+
+        <div id="locationStatus">
+          <div class="permission-section">
+            <h3>Location Sharing Permission</h3>
+            <p class="permission-text">
+              To keep your family safe, we need permission to access your
+              location. This allows family members to see where you are and
+              helps in emergency situations.
+            </p>
+            <button class="btn btn-success" onclick="startLocationSharing()">
+              Enable Location Sharing
+            </button>
+          </div>
+        </div>
+
+        <div class="family-members" id="familyMembers">
+          <!-- Family members will be populated here -->
+        </div>
+
+        <button
+          class="btn btn-danger"
+          onclick="leaveFamily()"
+          style="margin-top: 20px"
+        >
+          Leave Family Network
+        </button>
+      </div>
+    </div>
+
+    <script>
+      console.log("[v0] Family Safety App initialized");
+      
+      // Mock family data for demonstration
+      const mockFamilies = {
+        smiths: {
+          password: "family123",
+          members: [
+            {
+              id: 1,
+              name: "John Smith",
+              isOnline: true,
+              location: {
+                lat: 40.7128,
+                lng: -74.006,
+                address: "New York, NY",
+                timestamp: new Date().toISOString(),
+              },
+            },
+            {
+              id: 2,
+              name: "Sarah Smith",
+              isOnline: true,
+              location: {
+                lat: 40.7589,
+                lng: -73.9851,
+                address: "Times Square, NY",
+                timestamp: new Date().toISOString(),
+              },
+            },
+            {
+              id: 3,
+              name: "Mike Smith",
+              isOnline: false,
+              location: null,
+            },
+          ],
+        },
+        johnsons: {
+          password: "secure456",
+          members: [
+            {
+              id: 4,
+              name: "David Johnson",
+              isOnline: true,
+              location: {
+                lat: 34.0522,
+                lng: -118.2437,
+                address: "Los Angeles, CA",
+                timestamp: new Date().toISOString(),
+              },
+            },
+          ],
+        },
+      };
+
+      let currentUser = null;
+      let currentFamily = null;
+      let isLocationSharing = false;
+      let watchId = null;
+      let leafletMaps = {};
+
+      // Initialize app
+      function initializeApp() {
+        console.log("[v0] Initializing app");
+        
+        // Check for saved session
+        const savedSession = localStorage.getItem('familySafetySession');
+        if (savedSession) {
+          try {
+            const session = JSON.parse(savedSession);
+            console.log("[v0] Restoring saved session:", session);
+            
+            currentUser = session.currentUser;
+            currentFamily = session.currentFamily;
+            isLocationSharing = session.isLocationSharing;
+            
+            // Hide login section and show dashboard
+            document.getElementById("loginSection").classList.add("hidden");
+            document.getElementById("dashboard").classList.remove("hidden");
+            
+            // Restore location sharing if it was active
+            if (isLocationSharing) {
+              startLocationSharing();
+            }
+            
+            updateFamilyMembers();
+          } catch (error) {
+            console.error("[v0] Error restoring session:", error);
+            localStorage.removeItem('familySafetySession');
+          }
+        }
+      }
+
+      // Save session to localStorage
+      function saveSession() {
+        const session = {
+          currentUser,
+          currentFamily,
+          isLocationSharing
+        };
+        localStorage.setItem('familySafetySession', JSON.stringify(session));
+        console.log("[v0] Session saved");
+      }
+
+      // Join family function
+      function joinFamily() {
+        const familyName = document.getElementById("familyName").value.toLowerCase();
+        const password = document.getElementById("password").value;
+        const userName = document.getElementById("userName").value;
+
+        console.log("[v0] Attempting to join family:", familyName);
+
+        if (!familyName || !password || !userName) {
+          showError("Please fill in all fields");
+          return;
+        }
+
+        const family = mockFamilies[familyName];
+        if (!family) {
+          showError("Family not found");
+          return;
+        }
+
+        if (family.password !== password) {
+          showError("Incorrect password");
+          return;
+        }
+
+        // Set current user and family
+        currentUser = {
+          name: userName,
+          isOnline: true,
+          location: null,
+        };
+        currentFamily = familyName;
+
+        // Add user to family if not already present
+        const existingUser = family.members.find((m) => m.name === userName);
+        if (!existingUser) {
+          family.members.push({
+            id: Date.now(),
+            ...currentUser,
+          });
+        }
+
+        // Save session
+        saveSession();
+
+        // Hide login and show dashboard
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("dashboard").classList.remove("hidden");
+
+        showSuccess("Successfully joined family!");
+        updateFamilyMembers();
+
+        console.log("[v0] Successfully joined family");
+      }
+
+      // Create new family function
+      function createFamily() {
+        const familyName = document.getElementById("familyName").value.toLowerCase();
+        const password = document.getElementById("password").value;
+        const userName = document.getElementById("userName").value;
+
+        console.log("[v0] Attempting to create family:", familyName);
+
+        if (!familyName || !password || !userName) {
+          showError("Please fill in all fields");
+          return;
+        }
+
+        if (mockFamilies[familyName]) {
+          showError("Family name already exists. Please choose a different name.");
+          return;
+        }
+
+        if (password.length < 6) {
+          showError("Password must be at least 6 characters long");
+          return;
+        }
+
+        // Create new family
+        mockFamilies[familyName] = {
+          password: password,
+          members: []
+        };
+
+        // Set current user and family
+        currentUser = {
+          name: userName,
+          isOnline: true,
+          location: null,
+        };
+        currentFamily = familyName;
+
+        // Add user as first member
+        mockFamilies[familyName].members.push({
+          id: Date.now(),
+          ...currentUser,
+        });
+
+        // Save session
+        saveSession();
+
+        // Hide login and show dashboard
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("dashboard").classList.remove("hidden");
+
+        showSuccess("Family created successfully! Share the family name and password with your family members.");
+        updateFamilyMembers();
+
+        console.log("[v0] Successfully created family");
+      }
+
+      // Start location sharing
+      function startLocationSharing() {
+        console.log("[v0] Starting location sharing");
+        
+        if (!navigator.geolocation) {
+          showError("Geolocation is not supported by this browser");
+          return;
+        }
+
+        const options = {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        };
+
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            console.log("[v0] Location updated:", position.coords);
+            
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`,
+              timestamp: new Date().toISOString(),
+            };
+
+            // Update current user location
+            currentUser.location = location;
+            isLocationSharing = true;
+
+            // Update in mock data
+            const family = mockFamilies[currentFamily];
+            const userInFamily = family.members.find((m) => m.name === currentUser.name);
+            if (userInFamily) {
+              userInFamily.location = location;
+              userInFamily.isOnline = true;
+            }
+
+            // Save session
+            saveSession();
+
+            updateLocationSharingStatus();
+            updateFamilyMembers();
+          },
+          (error) => {
+            console.error("[v0] Geolocation error:", error);
+            showError("Unable to get your location: " + error.message);
+          },
+          options
+        );
+      }
+
+      // Stop location sharing
+      function stopLocationSharing() {
+        console.log("[v0] Stopping location sharing");
+        
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+
+        isLocationSharing = false;
+        currentUser.location = null;
+
+        // Update in mock data
+        const family = mockFamilies[currentFamily];
+        const userInFamily = family.members.find((m) => m.name === currentUser.name);
+        if (userInFamily) {
+          userInFamily.location = null;
+        }
+
+        // Save session
+        saveSession();
+
+        updateLocationSharingStatus();
+        updateFamilyMembers();
+      }
+
+      // Update location sharing status
+      function updateLocationSharingStatus() {
+        const statusDiv = document.getElementById("locationStatus");
+        if (isLocationSharing) {
+          statusDiv.innerHTML = `
+            <div class="location-sharing-status sharing-active">
+              <strong style="color: #34d399;">Location sharing is active</strong><br>
+              Your family can see your location and you can see theirs.
+              <button class="btn btn-secondary" onclick="stopLocationSharing()" style="margin-top: 10px; width: auto; padding: 8px 16px;">Stop Sharing</button>
+            </div>
+          `;
+        } else {
+          statusDiv.innerHTML = `
+            <div class="permission-section">
+              <h3>Location Sharing Permission</h3>
+              <p class="permission-text">
+                To keep your family safe, we need permission to access your location. 
+                This allows family members to see where you are and helps in emergency situations.
+              </p>
+              <button class="btn btn-success" onclick="startLocationSharing()">Enable Location Sharing</button>
+            </div>
+          `;
+        }
+      }
+
+      // Update family members display
+      function updateFamilyMembers() {
+        console.log("[v0] Updating family members display");
+        
+        if (!currentFamily) return;
+
+        const family = mockFamilies[currentFamily];
+        const membersContainer = document.getElementById("familyMembers");
+
+        // Clean up existing maps
+        Object.values(leafletMaps).forEach(map => {
+          if (map) {
+            map.remove();
+          }
+        });
+        leafletMaps = {};
+
+        let membersHTML = "";
+        family.members.forEach((member) => {
+          const isCurrentUser = member.name === currentUser.name;
+          const cardClass = isCurrentUser ? "member-card your-info" : "member-card";
+
+          membersHTML += `
+            <div class="${cardClass}">
+              <div class="member-info">
+                <h3>${member.name}${isCurrentUser ? " (You)" : ""}</h3>
+                <div class="member-status">
+                  <div class="status-indicator ${member.isOnline ? "status-online" : "status-offline"}"></div>
+                  <span>${member.isOnline ? "Sharing location" : "Offline"}</span>
+                </div>
+                ${
+                  member.location
+                    ? `<p class="member-location">${member.location.address}</p>`
+                    : ""
+                }
+                ${
+                  member.location
+                    ? `<div class="map-container" id="map-${member.id}"></div>`
+                    : `<div class="location-info">
+                        <p>Location not available</p>
+                      </div>`
+                }
+              </div>
+            </div>
+          `;
+        });
+
+        membersContainer.innerHTML = membersHTML;
+
+        // Initialize maps after DOM update
+        setTimeout(() => {
+          initializeLeafletMaps();
+        }, 100);
+      }
+
+      // Initialize Leaflet maps
+      function initializeLeafletMaps() {
+        console.log("[v0] Initializing Leaflet maps");
+        
+        if (!currentFamily) return;
+
+        const family = mockFamilies[currentFamily];
+        
+        family.members.forEach((member) => {
+          if (member.location) {
+            const mapContainer = document.getElementById(`map-${member.id}`);
+            if (mapContainer && typeof L !== 'undefined') {
+              try {
+                console.log(`[v0] Creating map for member ${member.name}`);
+                
+                // Ensure container has proper dimensions
+                mapContainer.style.height = '320px';
+                mapContainer.style.width = '100%';
+                
+                const map = L.map(`map-${member.id}`, {
+                  center: [member.location.lat, member.location.lng],
+                  zoom: 13,
+                  zoomControl: true,
+                  scrollWheelZoom: false
+                });
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+
+                // Create custom marker
+                const marker = L.marker([member.location.lat, member.location.lng])
+                  .addTo(map)
+                  .bindPopup(`<strong>${member.name}</strong><br>${member.location.address}`);
+
+                // Store map reference
+                leafletMaps[member.id] = map;
+
+                // Force map to resize properly
+                setTimeout(() => {
+                  map.invalidateSize();
+                }, 100);
+
+                console.log(`[v0] Map created successfully for ${member.name}`);
+              } catch (error) {
+                console.error(`[v0] Error creating map for ${member.name}:`, error);
+              }
+            } else {
+              console.warn(`[v0] Map container not found for member ${member.id} or Leaflet not loaded`);
+            }
+          }
+        });
+      }
+
+      // Leave family
+      function leaveFamily() {
+        console.log("[v0] Leaving family");
+        
+        // Stop location sharing
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+
+        // Clean up maps
+        Object.values(leafletMaps).forEach(map => {
+          if (map) {
+            map.remove();
+          }
+        });
+        leafletMaps = {};
+
+        // Clear session
+        localStorage.removeItem('familySafetySession');
+
+        // Reset state
+        currentUser = null;
+        currentFamily = null;
+        isLocationSharing = false;
+
+        // Show login section
+        document.getElementById("dashboard").classList.add("hidden");
+        document.getElementById("loginSection").classList.remove("hidden");
+
+        // Clear form
+        document.getElementById("familyName").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("userName").value = "";
+
+        showSuccess("Left family successfully");
+      }
+
+      // Utility functions
+      function showError(message) {
+        const errorDiv = document.getElementById("errorMessage");
+        errorDiv.textContent = message;
+        errorDiv.classList.remove("hidden");
+        setTimeout(() => errorDiv.classList.add("hidden"), 5000);
+      }
+
+      function showSuccess(message) {
+        const successDiv = document.getElementById("successMessage");
+        successDiv.textContent = message;
+        successDiv.classList.remove("hidden");
+        setTimeout(() => successDiv.classList.add("hidden"), 3000);
+      }
+
+      // Simulate real-time updates
+      setInterval(() => {
+        if (currentFamily && currentUser) {
+          updateFamilyMembers();
+        }
+      }, 30000);
+
+      // Initialize app when page loads
+      document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+  </body>
+</html>
