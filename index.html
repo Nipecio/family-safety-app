@@ -504,20 +504,12 @@
         try {
           console.log("[v0] Saving family data to cloud:", familyData.familyId);
 
-          const predictableBinName = `family-${familyData.familyId
-            .replace(/[^a-zA-Z0-9]/g, "")
-            .toLowerCase()}`;
-
-          let binId = localStorage.getItem(`binId_${familyData.familyId}`);
-
-          if (!binId) {
-            const hashCode = familyData.familyId.split("").reduce((a, b) => {
-              a = (a << 5) - a + b.charCodeAt(0);
-              return a & a;
-            }, 0);
-            binId = `family${Math.abs(hashCode).toString(36)}`;
-            console.log("[v0] Generated consistent bin ID:", binId);
-          }
+          const hashCode = familyData.familyId.split("").reduce((a, b) => {
+            a = (a << 5) - a + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          const binId = `family${Math.abs(hashCode).toString(36)}`;
+          console.log("[v0] Using consistent bin ID for saving:", binId);
 
           const updateResponse = await fetch(`${JSONBIN_BASE_URL}/${binId}`, {
             method: "PUT",
@@ -529,10 +521,17 @@
           });
 
           if (updateResponse.ok) {
-            console.log("[v0] Family data updated successfully in cloud");
+            console.log(
+              "[v0] Family data updated successfully in existing bin"
+            );
             localStorage.setItem(`binId_${familyData.familyId}`, binId);
             return familyData;
           }
+
+          console.log("[v0] Update failed, creating new bin");
+          const predictableBinName = `family-${familyData.familyId
+            .replace(/[^a-zA-Z0-9]/g, "")
+            .toLowerCase()}`;
 
           const response = await fetch(`${JSONBIN_BASE_URL}`, {
             method: "POST",
@@ -550,16 +549,13 @@
           }
 
           const result = await response.json();
-
-          localStorage.setItem(
-            `binId_${familyData.familyId}`,
-            result.metadata.id
-          );
+          const newBinId = result.metadata.id;
 
           console.log(
-            "[v0] Family data saved successfully to cloud with bin ID:",
-            result.metadata.id
+            "[v0] Family data saved successfully to new bin:",
+            newBinId
           );
+          localStorage.setItem(`binId_${familyData.familyId}`, newBinId);
           return familyData;
         } catch (error) {
           console.error("[v0] Error saving family data to cloud:", error);
@@ -579,48 +575,17 @@
 
           if (!binId) {
             console.log(
-              "[v0] No bin ID found locally, searching for family in cloud..."
+              "[v0] No bin ID found locally, generating consistent bin ID..."
             );
-
-            const predictableBinName = `family-${familyId
-              .replace(/[^a-zA-Z0-9]/g, "")
-              .toLowerCase()}`;
-
-            try {
-              const searchResponse = await fetch(`${JSONBIN_BASE_URL}`, {
-                method: "GET",
-                headers: {
-                  "X-Master-Key": JSONBIN_API_KEY,
-                },
-              });
-
-              if (searchResponse.ok) {
-                const bins = await searchResponse.json();
-                console.log("[v0] Searching through available bins...");
-
-                for (const bin of bins.record || []) {
-                  if (bin.name && bin.name.includes(predictableBinName)) {
-                    binId = bin.id;
-                    localStorage.setItem(`binId_${familyId}`, binId);
-                    console.log("[v0] Found family bin:", binId);
-                    break;
-                  }
-                }
-              }
-            } catch (searchError) {
-              console.log("[v0] Bin search failed, trying direct access");
-            }
-
-            if (!binId) {
-              const hashCode = familyId.split("").reduce((a, b) => {
-                a = (a << 5) - a + b.charCodeAt(0);
-                return a & a;
-              }, 0);
-              binId = `family${Math.abs(hashCode).toString(36)}`;
-              console.log("[v0] Using generated bin ID:", binId);
-            }
+            const hashCode = familyId.split("").reduce((a, b) => {
+              a = (a << 5) - a + b.charCodeAt(0);
+              return a & a;
+            }, 0);
+            binId = `family${Math.abs(hashCode).toString(36)}`;
+            console.log("[v0] Generated consistent bin ID:", binId);
           }
 
+          console.log("[v0] Attempting to load from bin ID:", binId);
           const response = await fetch(`${JSONBIN_BASE_URL}/${binId}/latest`, {
             method: "GET",
             headers: {
@@ -630,30 +595,38 @@
 
           if (!response.ok) {
             if (response.status === 404) {
-              console.log("[v0] Family bin not found in cloud");
+              console.log(
+                "[v0] Family bin not found in cloud - family does not exist"
+              );
               localStorage.removeItem(`binId_${familyId}`);
-              throw new Error("Family not found");
+              return null; // Family doesn't exist
             }
             throw new Error(`HTTP error! status: ${response.status}`);
           }
 
           const result = await response.json();
-          console.log("[v0] Family data loaded successfully from cloud");
+          console.log(
+            "[v0] Family data loaded successfully from cloud:",
+            result.record
+          );
 
           localStorage.setItem(`binId_${familyId}`, binId);
           localStorage.setItem("familyDataSource", "cloud");
           return result.record;
         } catch (error) {
           console.error("[v0] Error loading family data from cloud:", error);
+
           const storageKey = `family_${familyId}`;
           const localData = localStorage.getItem(storageKey);
+
           if (localData) {
-            console.log("[v0] Fallback: loaded from localStorage");
+            console.log("[v0] Found family data in localStorage as fallback");
             localStorage.setItem("familyDataSource", "localStorage");
             return JSON.parse(localData);
           }
-          console.log("[v0] Family not found in localStorage either");
-          return null;
+
+          console.log("[v0] Family not found in cloud or localStorage");
+          return null; // Family doesn't exist
         }
       }
 
@@ -763,6 +736,12 @@
           document.getElementById("dashboard").classList.remove("hidden");
 
           displayFamilyId();
+          updateLocationSharingStatus();
+
+          if (isLocationSharing) {
+            startLocationSharing();
+          }
+
           updateFamilyMembers();
           startSync();
 
