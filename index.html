@@ -23,7 +23,8 @@
       }
 
       body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
         background: #0f172a;
         min-height: 100vh;
         color: #f8fafc;
@@ -318,11 +319,11 @@
         .container {
           padding: 16px;
         }
-        
+
         .header h1 {
           font-size: 2rem;
         }
-        
+
         .family-members {
           grid-template-columns: 1fr;
         }
@@ -408,7 +409,7 @@
 
     <script>
       console.log("[v0] Family Safety App initialized");
-      
+
       // Mock family data for demonstration
       const mockFamilies = {
         smiths: {
@@ -471,31 +472,31 @@
       // Initialize app
       function initializeApp() {
         console.log("[v0] Initializing app");
-        
+
         // Check for saved session
-        const savedSession = localStorage.getItem('familySafetySession');
+        const savedSession = localStorage.getItem("familySafetySession");
         if (savedSession) {
           try {
             const session = JSON.parse(savedSession);
             console.log("[v0] Restoring saved session:", session);
-            
+
             currentUser = session.currentUser;
             currentFamily = session.currentFamily;
             isLocationSharing = session.isLocationSharing;
-            
+
             // Hide login section and show dashboard
             document.getElementById("loginSection").classList.add("hidden");
             document.getElementById("dashboard").classList.remove("hidden");
-            
+
             // Restore location sharing if it was active
             if (isLocationSharing) {
               startLocationSharing();
             }
-            
+
             updateFamilyMembers();
           } catch (error) {
             console.error("[v0] Error restoring session:", error);
-            localStorage.removeItem('familySafetySession');
+            localStorage.removeItem("familySafetySession");
           }
         }
       }
@@ -505,15 +506,17 @@
         const session = {
           currentUser,
           currentFamily,
-          isLocationSharing
+          isLocationSharing,
         };
-        localStorage.setItem('familySafetySession', JSON.stringify(session));
+        localStorage.setItem("familySafetySession", JSON.stringify(session));
         console.log("[v0] Session saved");
       }
 
       // Join family function
       function joinFamily() {
-        const familyName = document.getElementById("familyName").value.toLowerCase();
+        const familyName = document
+          .getElementById("familyName")
+          .value.toLowerCase();
         const password = document.getElementById("password").value;
         const userName = document.getElementById("userName").value;
 
@@ -567,7 +570,9 @@
 
       // Create new family function
       function createFamily() {
-        const familyName = document.getElementById("familyName").value.toLowerCase();
+        const familyName = document
+          .getElementById("familyName")
+          .value.toLowerCase();
         const password = document.getElementById("password").value;
         const userName = document.getElementById("userName").value;
 
@@ -579,7 +584,9 @@
         }
 
         if (mockFamilies[familyName]) {
-          showError("Family name already exists. Please choose a different name.");
+          showError(
+            "Family name already exists. Please choose a different name."
+          );
           return;
         }
 
@@ -591,7 +598,7 @@
         // Create new family
         mockFamilies[familyName] = {
           password: password,
-          members: []
+          members: [],
         };
 
         // Set current user and family
@@ -615,7 +622,9 @@
         document.getElementById("loginSection").classList.add("hidden");
         document.getElementById("dashboard").classList.remove("hidden");
 
-        showSuccess("Family created successfully! Share the family name and password with your family members.");
+        showSuccess(
+          "Family created successfully! Share the family name and password with your family members."
+        );
         updateFamilyMembers();
 
         console.log("[v0] Successfully created family");
@@ -624,7 +633,7 @@
       // Start location sharing
       function startLocationSharing() {
         console.log("[v0] Starting location sharing");
-        
+
         if (!navigator.geolocation) {
           showError("Geolocation is not supported by this browser");
           return;
@@ -639,11 +648,13 @@
         watchId = navigator.geolocation.watchPosition(
           (position) => {
             console.log("[v0] Location updated:", position.coords);
-            
+
             const location = {
               lat: position.coords.latitude,
               lng: position.coords.longitude,
-              address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`,
+              address: `${position.coords.latitude.toFixed(
+                4
+              )}, ${position.coords.longitude.toFixed(4)}`,
               timestamp: new Date().toISOString(),
             };
 
@@ -653,7 +664,9 @@
 
             // Update in mock data
             const family = mockFamilies[currentFamily];
-            const userInFamily = family.members.find((m) => m.name === currentUser.name);
+            const userInFamily = family.members.find(
+              (m) => m.name === currentUser.name
+            );
             if (userInFamily) {
               userInFamily.location = location;
               userInFamily.isOnline = true;
@@ -676,7 +689,7 @@
       // Stop location sharing
       function stopLocationSharing() {
         console.log("[v0] Stopping location sharing");
-        
+
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
           watchId = null;
@@ -687,7 +700,9 @@
 
         // Update in mock data
         const family = mockFamilies[currentFamily];
-        const userInFamily = family.members.find((m) => m.name === currentUser.name);
+        const userInFamily = family.members.find(
+          (m) => m.name === currentUser.name
+        );
         if (userInFamily) {
           userInFamily.location = null;
         }
@@ -727,14 +742,14 @@
       // Update family members display
       function updateFamilyMembers() {
         console.log("[v0] Updating family members display");
-        
+
         if (!currentFamily) return;
 
         const family = mockFamilies[currentFamily];
         const membersContainer = document.getElementById("familyMembers");
 
         // Clean up existing maps
-        Object.values(leafletMaps).forEach(map => {
+        Object.values(leafletMaps).forEach((map) => {
           if (map) {
             map.remove();
           }
@@ -744,15 +759,21 @@
         let membersHTML = "";
         family.members.forEach((member) => {
           const isCurrentUser = member.name === currentUser.name;
-          const cardClass = isCurrentUser ? "member-card your-info" : "member-card";
+          const cardClass = isCurrentUser
+            ? "member-card your-info"
+            : "member-card";
 
           membersHTML += `
             <div class="${cardClass}">
               <div class="member-info">
                 <h3>${member.name}${isCurrentUser ? " (You)" : ""}</h3>
                 <div class="member-status">
-                  <div class="status-indicator ${member.isOnline ? "status-online" : "status-offline"}"></div>
-                  <span>${member.isOnline ? "Sharing location" : "Offline"}</span>
+                  <div class="status-indicator ${
+                    member.isOnline ? "status-online" : "status-offline"
+                  }"></div>
+                  <span>${
+                    member.isOnline ? "Sharing location" : "Offline"
+                  }</span>
                 </div>
                 ${
                   member.location
@@ -782,37 +803,45 @@
       // Initialize Leaflet maps
       function initializeLeafletMaps() {
         console.log("[v0] Initializing Leaflet maps");
-        
+
         if (!currentFamily) return;
 
         const family = mockFamilies[currentFamily];
-        
+
         family.members.forEach((member) => {
           if (member.location) {
             const mapContainer = document.getElementById(`map-${member.id}`);
-            if (mapContainer && typeof L !== 'undefined') {
+            if (mapContainer && typeof L !== "undefined") {
               try {
                 console.log(`[v0] Creating map for member ${member.name}`);
-                
+
                 // Ensure container has proper dimensions
-                mapContainer.style.height = '320px';
-                mapContainer.style.width = '100%';
-                
+                mapContainer.style.height = "320px";
+                mapContainer.style.width = "100%";
+
                 const map = L.map(`map-${member.id}`, {
                   center: [member.location.lat, member.location.lng],
                   zoom: 13,
                   zoomControl: true,
-                  scrollWheelZoom: false
+                  scrollWheelZoom: false,
                 });
 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  attribution: '© OpenStreetMap contributors'
-                }).addTo(map);
+                L.tileLayer(
+                  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  {
+                    attribution: "© OpenStreetMap contributors",
+                  }
+                ).addTo(map);
 
                 // Create custom marker
-                const marker = L.marker([member.location.lat, member.location.lng])
+                const marker = L.marker([
+                  member.location.lat,
+                  member.location.lng,
+                ])
                   .addTo(map)
-                  .bindPopup(`<strong>${member.name}</strong><br>${member.location.address}`);
+                  .bindPopup(
+                    `<strong>${member.name}</strong><br>${member.location.address}`
+                  );
 
                 // Store map reference
                 leafletMaps[member.id] = map;
@@ -824,10 +853,15 @@
 
                 console.log(`[v0] Map created successfully for ${member.name}`);
               } catch (error) {
-                console.error(`[v0] Error creating map for ${member.name}:`, error);
+                console.error(
+                  `[v0] Error creating map for ${member.name}:`,
+                  error
+                );
               }
             } else {
-              console.warn(`[v0] Map container not found for member ${member.id} or Leaflet not loaded`);
+              console.warn(
+                `[v0] Map container not found for member ${member.id} or Leaflet not loaded`
+              );
             }
           }
         });
@@ -836,7 +870,7 @@
       // Leave family
       function leaveFamily() {
         console.log("[v0] Leaving family");
-        
+
         // Stop location sharing
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
@@ -844,7 +878,7 @@
         }
 
         // Clean up maps
-        Object.values(leafletMaps).forEach(map => {
+        Object.values(leafletMaps).forEach((map) => {
           if (map) {
             map.remove();
           }
@@ -852,7 +886,7 @@
         leafletMaps = {};
 
         // Clear session
-        localStorage.removeItem('familySafetySession');
+        localStorage.removeItem("familySafetySession");
 
         // Reset state
         currentUser = null;
@@ -894,7 +928,7 @@
       }, 30000);
 
       // Initialize app when page loads
-      document.addEventListener('DOMContentLoaded', initializeApp);
+      document.addEventListener("DOMContentLoaded", initializeApp);
     </script>
   </body>
 </html>
