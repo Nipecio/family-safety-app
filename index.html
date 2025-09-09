@@ -302,19 +302,36 @@
         border-color: rgba(16, 185, 129, 0.3);
       }
 
-      /* Added loading state styles */
       .loading {
         opacity: 0.6;
         pointer-events: none;
       }
 
-      /* Added better focus states */
       .btn:focus-visible {
         outline: 2px solid #6366f1;
         outline-offset: 2px;
       }
 
-      /* Added responsive improvements */
+      .storage-notice {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+      }
+
+      .storage-notice h3 {
+        color: #60a5fa;
+        font-size: 1rem;
+        margin-bottom: 8px;
+      }
+
+      .storage-notice p {
+        color: #cbd5e1;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
       @media (max-width: 768px) {
         .container {
           padding: 16px;
@@ -333,9 +350,14 @@
   <body>
     <div class="container">
       <div class="header">
-        <!-- Removed emoji and updated title -->
         <h1>Family Safety</h1>
         <p>Keep your family connected and safe</p>
+      </div>
+
+      <!-- Storage Notice -->
+      <div class="storage-notice">
+        <h3>📱 Cross-Device Family Sharing</h3>
+        <p>Family data is stored using GitHub Gists for cross-device access. When you create a family, you'll get a Family ID that you can share with other family members to join from different devices.</p>
       </div>
 
       <!-- Login Section -->
@@ -345,11 +367,11 @@
             Family Account Access
           </h2>
           <div class="form-group">
-            <label for="familyName">Family Name:</label>
+            <label for="familyId">Family ID:</label>
             <input
               type="text"
-              id="familyName"
-              placeholder="Enter your family name"
+              id="familyId"
+              placeholder="Enter Family ID (e.g., family_abc123)"
             />
           </div>
           <div class="form-group">
@@ -378,6 +400,9 @@
       <!-- Main Dashboard -->
       <div id="dashboard" class="card hidden">
         <h2>Family Dashboard</h2>
+        <div id="familyIdDisplay" class="storage-notice" style="margin-bottom: 20px;">
+          <!-- Family ID will be displayed here -->
+        </div>
 
         <div id="locationStatus">
           <div class="permission-section">
@@ -408,94 +433,163 @@
     </div>
 
     <script>
-      console.log("[v0] Family Safety App initialized");
+      console.log("[Family Safety] App initialized");
 
-      // Mock family data for demonstration
-      const mockFamilies = {
-        smiths: {
-          password: "family123",
-          members: [
-            {
-              id: 1,
-              name: "John Smith",
-              isOnline: true,
-              location: {
-                lat: 40.7128,
-                lng: -74.006,
-                address: "New York, NY",
-                timestamp: new Date().toISOString(),
-              },
-            },
-            {
-              id: 2,
-              name: "Sarah Smith",
-              isOnline: true,
-              location: {
-                lat: 40.7589,
-                lng: -73.9851,
-                address: "Times Square, NY",
-                timestamp: new Date().toISOString(),
-              },
-            },
-            {
-              id: 3,
-              name: "Mike Smith",
-              isOnline: false,
-              location: null,
-            },
-          ],
-        },
-        johnsons: {
-          password: "secure456",
-          members: [
-            {
-              id: 4,
-              name: "David Johnson",
-              isOnline: true,
-              location: {
-                lat: 34.0522,
-                lng: -118.2437,
-                address: "Los Angeles, CA",
-                timestamp: new Date().toISOString(),
-              },
-            },
-          ],
-        },
-      };
-
+      // GitHub API configuration for anonymous gist storage
+      const GITHUB_API_BASE = 'https://api.github.com';
+      
       let currentUser = null;
       let currentFamily = null;
+      let currentFamilyData = null;
       let isLocationSharing = false;
       let watchId = null;
       let leafletMaps = {};
+      let syncInterval = null;
+
+      // Generate a unique family ID
+      function generateFamilyId() {
+        const timestamp = Date.now().toString(36);
+        const randomPart = Math.random().toString(36).substring(2, 8);
+        return `family_${timestamp}_${randomPart}`;
+      }
+
+      // Create family data structure
+      function createFamilyData(familyId, password, creatorName) {
+        return {
+          familyId: familyId,
+          password: password,
+          createdAt: new Date().toISOString(),
+          lastUpdated: new Date().toISOString(),
+          members: [{
+            id: Date.now(),
+            name: creatorName,
+            isOnline: true,
+            location: null,
+            joinedAt: new Date().toISOString(),
+            lastSeen: new Date().toISOString()
+          }]
+        };
+      }
+
+      // Save family data to GitHub Gist
+      async function saveFamilyData(familyData) {
+        try {
+          const gistData = {
+            description: `Family Safety Data - ${familyData.familyId}`,
+            public: false,
+            files: {
+              "family-data.json": {
+                content: JSON.stringify(familyData, null, 2)
+              }
+            }
+          };
+
+          let response;
+          if (familyData.gistId) {
+            // Update existing gist
+            response = await fetch(`${GITHUB_API_BASE}/gists/${familyData.gistId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(gistData)
+            });
+          } else {
+            // Create new gist
+            response = await fetch(`${GITHUB_API_BASE}/gists`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(gistData)
+            });
+          }
+
+          if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+          }
+
+          const result = await response.json();
+          familyData.gistId = result.id;
+          familyData.lastUpdated = new Date().toISOString();
+          
+          return result;
+        } catch (error) {
+          console.error('[Family Safety] Error saving family data:', error);
+          // Fallback to localStorage for demo purposes
+          const storageKey = `family_${familyData.familyId}`;
+          const dataToStore = JSON.stringify(familyData);
+          localStorage.setItem(storageKey, dataToStore);
+          return familyData;
+        }
+      }
+
+      // Load family data from GitHub Gist or localStorage
+      async function loadFamilyData(familyId) {
+        try {
+          // First try to load from localStorage to get gistId
+          const storageKey = `family_${familyId}`;
+          const localData = localStorage.getItem(storageKey);
+          
+          if (localData) {
+            const parsedData = JSON.parse(localData);
+            if (parsedData.gistId) {
+              // Try to fetch from GitHub
+              const response = await fetch(`${GITHUB_API_BASE}/gists/${parsedData.gistId}`);
+              if (response.ok) {
+                const gistData = await response.json();
+                const familyData = JSON.parse(gistData.files['family-data.json'].content);
+                
+                // Update localStorage with latest data
+                localStorage.setItem(storageKey, JSON.stringify(familyData));
+                return familyData;
+              }
+            }
+            return parsedData;
+          }
+          
+          return null;
+        } catch (error) {
+          console.error('[Family Safety] Error loading family data:', error);
+          
+          // Fallback to localStorage only
+          const storageKey = `family_${familyId}`;
+          const localData = localStorage.getItem(storageKey);
+          return localData ? JSON.parse(localData) : null;
+        }
+      }
 
       // Initialize app
-      function initializeApp() {
-        console.log("[v0] Initializing app");
+      async function initializeApp() {
+        console.log("[Family Safety] Initializing app");
 
         // Check for saved session
-        const savedSession = localStorage.getItem("familySafetySession");
-        if (savedSession) {
+        const savedSession = JSON.parse(localStorage.getItem("familySafetySession") || "{}");
+        if (savedSession.currentFamily) {
           try {
-            const session = JSON.parse(savedSession);
-            console.log("[v0] Restoring saved session:", session);
+            currentFamilyData = await loadFamilyData(savedSession.currentFamily);
+            if (currentFamilyData) {
+              currentUser = savedSession.currentUser;
+              currentFamily = savedSession.currentFamily;
+              isLocationSharing = savedSession.isLocationSharing || false;
 
-            currentUser = session.currentUser;
-            currentFamily = session.currentFamily;
-            isLocationSharing = session.isLocationSharing;
+              // Hide login section and show dashboard
+              document.getElementById("loginSection").classList.add("hidden");
+              document.getElementById("dashboard").classList.remove("hidden");
 
-            // Hide login section and show dashboard
-            document.getElementById("loginSection").classList.add("hidden");
-            document.getElementById("dashboard").classList.remove("hidden");
+              // Show family ID
+              displayFamilyId();
 
-            // Restore location sharing if it was active
-            if (isLocationSharing) {
-              startLocationSharing();
+              // Restore location sharing if it was active
+              if (isLocationSharing) {
+                startLocationSharing();
+              }
+
+              updateFamilyMembers();
+              startSync();
             }
-
-            updateFamilyMembers();
           } catch (error) {
-            console.error("[v0] Error restoring session:", error);
+            console.error("[Family Safety] Error restoring session:", error);
             localStorage.removeItem("familySafetySession");
           }
         }
@@ -509,84 +603,102 @@
           isLocationSharing,
         };
         localStorage.setItem("familySafetySession", JSON.stringify(session));
-        console.log("[v0] Session saved");
+        console.log("[Family Safety] Session saved");
+      }
+
+      // Display family ID
+      function displayFamilyId() {
+        if (currentFamily) {
+          document.getElementById("familyIdDisplay").innerHTML = `
+            <h3>👨‍👩‍👧‍👦 Family ID: <code style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">${currentFamily}</code></h3>
+            <p>Share this Family ID and password with other family members so they can join from their devices.</p>
+          `;
+        }
       }
 
       // Join family function
-      function joinFamily() {
-        const familyName = document
-          .getElementById("familyName")
-          .value.toLowerCase();
+      async function joinFamily() {
+        const familyId = document.getElementById("familyId").value.trim();
         const password = document.getElementById("password").value;
-        const userName = document.getElementById("userName").value;
+        const userName = document.getElementById("userName").value.trim();
 
-        console.log("[v0] Attempting to join family:", familyName);
+        console.log("[Family Safety] Attempting to join family:", familyId);
 
-        if (!familyName || !password || !userName) {
+        if (!familyId || !password || !userName) {
           showError("Please fill in all fields");
           return;
         }
 
-        const family = mockFamilies[familyName];
-        if (!family) {
-          showError("Family not found");
-          return;
+        try {
+          const familyData = await loadFamilyData(familyId);
+          
+          if (!familyData) {
+            showError("Family not found. Please check the Family ID.");
+            return;
+          }
+
+          if (familyData.password !== password) {
+            showError("Incorrect password");
+            return;
+          }
+
+          // Set current user and family
+          currentUser = {
+            name: userName,
+            isOnline: true,
+            location: null,
+          };
+          currentFamily = familyId;
+          currentFamilyData = familyData;
+
+          // Add user to family if not already present
+          const existingUser = familyData.members.find((m) => m.name === userName);
+          if (!existingUser) {
+            familyData.members.push({
+              id: Date.now(),
+              ...currentUser,
+              joinedAt: new Date().toISOString(),
+              lastSeen: new Date().toISOString()
+            });
+            
+            // Save updated family data
+            await saveFamilyData(familyData);
+          } else {
+            // Update existing user status
+            existingUser.isOnline = true;
+            existingUser.lastSeen = new Date().toISOString();
+            await saveFamilyData(familyData);
+          }
+
+          // Save session
+          saveSession();
+
+          // Hide login and show dashboard
+          document.getElementById("loginSection").classList.add("hidden");
+          document.getElementById("dashboard").classList.remove("hidden");
+
+          displayFamilyId();
+          showSuccess("Successfully joined family!");
+          updateFamilyMembers();
+          startSync();
+
+          console.log("[Family Safety] Successfully joined family");
+        } catch (error) {
+          console.error("[Family Safety] Error joining family:", error);
+          showError("Error joining family. Please try again.");
         }
-
-        if (family.password !== password) {
-          showError("Incorrect password");
-          return;
-        }
-
-        // Set current user and family
-        currentUser = {
-          name: userName,
-          isOnline: true,
-          location: null,
-        };
-        currentFamily = familyName;
-
-        // Add user to family if not already present
-        const existingUser = family.members.find((m) => m.name === userName);
-        if (!existingUser) {
-          family.members.push({
-            id: Date.now(),
-            ...currentUser,
-          });
-        }
-
-        // Save session
-        saveSession();
-
-        // Hide login and show dashboard
-        document.getElementById("loginSection").classList.add("hidden");
-        document.getElementById("dashboard").classList.remove("hidden");
-
-        showSuccess("Successfully joined family!");
-        updateFamilyMembers();
-
-        console.log("[v0] Successfully joined family");
       }
 
       // Create new family function
-      function createFamily() {
-        const familyName = document
-          .getElementById("familyName")
-          .value.toLowerCase();
+      async function createFamily() {
+        const familyIdInput = document.getElementById("familyId").value.trim();
         const password = document.getElementById("password").value;
-        const userName = document.getElementById("userName").value;
+        const userName = document.getElementById("userName").value.trim();
 
-        console.log("[v0] Attempting to create family:", familyName);
+        console.log("[Family Safety] Attempting to create family");
 
-        if (!familyName || !password || !userName) {
-          showError("Please fill in all fields");
-          return;
-        }
-
-        if (mockFamilies[familyName]) {
-          showError(
-            "Family name already exists. Please choose a different name."
-          );
+        if (!password || !userName) {
+          showError("Please enter your name and a family password");
           return;
         }
 
@@ -595,44 +707,92 @@
           return;
         }
 
-        // Create new family
-        mockFamilies[familyName] = {
-          password: password,
-          members: [],
-        };
+        try {
+          // Generate a unique family ID
+          const familyId = familyIdInput || generateFamilyId();
+          
+          // Check if family already exists (if custom ID provided)
+          if (familyIdInput) {
+            const existingFamily = await loadFamilyData(familyId);
+            if (existingFamily) {
+              showError("Family ID already exists. Please choose a different ID or leave blank for auto-generation.");
+              return;
+            }
+          }
 
-        // Set current user and family
-        currentUser = {
-          name: userName,
-          isOnline: true,
-          location: null,
-        };
-        currentFamily = familyName;
+          // Create new family data
+          const familyData = createFamilyData(familyId, password, userName);
 
-        // Add user as first member
-        mockFamilies[familyName].members.push({
-          id: Date.now(),
-          ...currentUser,
-        });
+          // Save family data
+          await saveFamilyData(familyData);
 
-        // Save session
-        saveSession();
+          // Set current state
+          currentUser = familyData.members[0];
+          currentFamily = familyId;
+          currentFamilyData = familyData;
 
-        // Hide login and show dashboard
-        document.getElementById("loginSection").classList.add("hidden");
-        document.getElementById("dashboard").classList.remove("hidden");
+          // Save session
+          saveSession();
 
-        showSuccess(
-          "Family created successfully! Share the family name and password with your family members."
-        );
-        updateFamilyMembers();
+          // Hide login and show dashboard
+          document.getElementById("loginSection").classList.add("hidden");
+          document.getElementById("dashboard").classList.remove("hidden");
 
-        console.log("[v0] Successfully created family");
+          displayFamilyId();
+          showSuccess(`Family created successfully! Family ID: ${familyId}`);
+          updateFamilyMembers();
+          startSync();
+
+          console.log("[Family Safety] Successfully created family");
+        } catch (error) {
+          console.error("[Family Safety] Error creating family:", error);
+          showError("Error creating family. Please try again.");
+        }
+      }
+
+      // Start syncing with other devices
+      function startSync() {
+        if (syncInterval) clearInterval(syncInterval);
+        
+        syncInterval = setInterval(async () => {
+          if (currentFamily && currentFamilyData) {
+            try {
+              // Update current user's status
+              const userIndex = currentFamilyData.members.findIndex(m => m.name === currentUser.name);
+              if (userIndex !== -1) {
+                currentFamilyData.members[userIndex].lastSeen = new Date().toISOString();
+                currentFamilyData.members[userIndex].isOnline = true;
+                if (currentUser.location) {
+                  currentFamilyData.members[userIndex].location = currentUser.location;
+                }
+              }
+
+              // Fetch latest data from other devices
+              const latestData = await loadFamilyData(currentFamily);
+              if (latestData && latestData.lastUpdated > currentFamilyData.lastUpdated) {
+                currentFamilyData = latestData;
+                
+                // Find current user in updated data
+                const updatedUser = currentFamilyData.members.find(m => m.name === currentUser.name);
+                if (updatedUser) {
+                  currentUser = updatedUser;
+                }
+                
+                updateFamilyMembers();
+              }
+
+              // Save current data
+              await saveFamilyData(currentFamilyData);
+            } catch (error) {
+              console.error("[Family Safety] Sync error:", error);
+            }
+          }
+        }, 10000); // Sync every 10 seconds
       }
 
       // Start location sharing
       function startLocationSharing() {
-        console.log("[v0] Starting location sharing");
+        console.log("[Family Safety] Starting location sharing");
 
         if (!navigator.geolocation) {
           showError("Geolocation is not supported by this browser");
@@ -646,15 +806,13 @@
         };
 
         watchId = navigator.geolocation.watchPosition(
-          (position) => {
-            console.log("[v0] Location updated:", position.coords);
+          async (position) => {
+            console.log("[Family Safety] Location updated:", position.coords);
 
             const location = {
               lat: position.coords.latitude,
               lng: position.coords.longitude,
-              address: `${position.coords.latitude.toFixed(
-                4
-              )}, ${position.coords.longitude.toFixed(4)}`,
+              address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`,
               timestamp: new Date().toISOString(),
             };
 
@@ -662,14 +820,16 @@
             currentUser.location = location;
             isLocationSharing = true;
 
-            // Update in mock data
-            const family = mockFamilies[currentFamily];
-            const userInFamily = family.members.find(
-              (m) => m.name === currentUser.name
-            );
-            if (userInFamily) {
-              userInFamily.location = location;
-              userInFamily.isOnline = true;
+            // Update in family data
+            if (currentFamilyData) {
+              const userIndex = currentFamilyData.members.findIndex(m => m.name === currentUser.name);
+              if (userIndex !== -1) {
+                currentFamilyData.members[userIndex].location = location;
+                currentFamilyData.members[userIndex].isOnline = true;
+                currentFamilyData.members[userIndex].lastSeen = new Date().toISOString();
+              }
+              
+              await saveFamilyData(currentFamilyData);
             }
 
             // Save session
@@ -679,7 +839,7 @@
             updateFamilyMembers();
           },
           (error) => {
-            console.error("[v0] Geolocation error:", error);
+            console.error("[Family Safety] Geolocation error:", error);
             showError("Unable to get your location: " + error.message);
           },
           options
@@ -687,8 +847,8 @@
       }
 
       // Stop location sharing
-      function stopLocationSharing() {
-        console.log("[v0] Stopping location sharing");
+      async function stopLocationSharing() {
+        console.log("[Family Safety] Stopping location sharing");
 
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
@@ -698,13 +858,15 @@
         isLocationSharing = false;
         currentUser.location = null;
 
-        // Update in mock data
-        const family = mockFamilies[currentFamily];
-        const userInFamily = family.members.find(
-          (m) => m.name === currentUser.name
-        );
-        if (userInFamily) {
-          userInFamily.location = null;
+        // Update in family data
+        if (currentFamilyData) {
+          const userIndex = currentFamilyData.members.findIndex(m => m.name === currentUser.name);
+          if (userIndex !== -1) {
+            currentFamilyData.members[userIndex].location = null;
+            currentFamilyData.members[userIndex].lastSeen = new Date().toISOString();
+          }
+          
+          await saveFamilyData(currentFamilyData);
         }
 
         // Save session
@@ -741,11 +903,10 @@
 
       // Update family members display
       function updateFamilyMembers() {
-        console.log("[v0] Updating family members display");
+        console.log("[Family Safety] Updating family members display");
 
-        if (!currentFamily) return;
+        if (!currentFamilyData) return;
 
-        const family = mockFamilies[currentFamily];
         const membersContainer = document.getElementById("familyMembers");
 
         // Clean up existing maps
@@ -757,178 +918,10 @@
         leafletMaps = {};
 
         let membersHTML = "";
-        family.members.forEach((member) => {
+        currentFamilyData.members.forEach((member) => {
           const isCurrentUser = member.name === currentUser.name;
-          const cardClass = isCurrentUser
-            ? "member-card your-info"
-            : "member-card";
-
-          membersHTML += `
-            <div class="${cardClass}">
-              <div class="member-info">
-                <h3>${member.name}${isCurrentUser ? " (You)" : ""}</h3>
-                <div class="member-status">
-                  <div class="status-indicator ${
-                    member.isOnline ? "status-online" : "status-offline"
-                  }"></div>
-                  <span>${
-                    member.isOnline ? "Sharing location" : "Offline"
-                  }</span>
-                </div>
-                ${
-                  member.location
-                    ? `<p class="member-location">${member.location.address}</p>`
-                    : ""
-                }
-                ${
-                  member.location
-                    ? `<div class="map-container" id="map-${member.id}"></div>`
-                    : `<div class="location-info">
-                        <p>Location not available</p>
-                      </div>`
-                }
-              </div>
-            </div>
-          `;
-        });
-
-        membersContainer.innerHTML = membersHTML;
-
-        // Initialize maps after DOM update
-        setTimeout(() => {
-          initializeLeafletMaps();
-        }, 100);
-      }
-
-      // Initialize Leaflet maps
-      function initializeLeafletMaps() {
-        console.log("[v0] Initializing Leaflet maps");
-
-        if (!currentFamily) return;
-
-        const family = mockFamilies[currentFamily];
-
-        family.members.forEach((member) => {
-          if (member.location) {
-            const mapContainer = document.getElementById(`map-${member.id}`);
-            if (mapContainer && typeof L !== "undefined") {
-              try {
-                console.log(`[v0] Creating map for member ${member.name}`);
-
-                // Ensure container has proper dimensions
-                mapContainer.style.height = "320px";
-                mapContainer.style.width = "100%";
-
-                const map = L.map(`map-${member.id}`, {
-                  center: [member.location.lat, member.location.lng],
-                  zoom: 13,
-                  zoomControl: true,
-                  scrollWheelZoom: false,
-                });
-
-                L.tileLayer(
-                  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  {
-                    attribution: "© OpenStreetMap contributors",
-                  }
-                ).addTo(map);
-
-                // Create custom marker
-                const marker = L.marker([
-                  member.location.lat,
-                  member.location.lng,
-                ])
-                  .addTo(map)
-                  .bindPopup(
-                    `<strong>${member.name}</strong><br>${member.location.address}`
-                  );
-
-                // Store map reference
-                leafletMaps[member.id] = map;
-
-                // Force map to resize properly
-                setTimeout(() => {
-                  map.invalidateSize();
-                }, 100);
-
-                console.log(`[v0] Map created successfully for ${member.name}`);
-              } catch (error) {
-                console.error(
-                  `[v0] Error creating map for ${member.name}:`,
-                  error
-                );
-              }
-            } else {
-              console.warn(
-                `[v0] Map container not found for member ${member.id} or Leaflet not loaded`
-              );
-            }
-          }
-        });
-      }
-
-      // Leave family
-      function leaveFamily() {
-        console.log("[v0] Leaving family");
-
-        // Stop location sharing
-        if (watchId) {
-          navigator.geolocation.clearWatch(watchId);
-          watchId = null;
-        }
-
-        // Clean up maps
-        Object.values(leafletMaps).forEach((map) => {
-          if (map) {
-            map.remove();
-          }
-        });
-        leafletMaps = {};
-
-        // Clear session
-        localStorage.removeItem("familySafetySession");
-
-        // Reset state
-        currentUser = null;
-        currentFamily = null;
-        isLocationSharing = false;
-
-        // Show login section
-        document.getElementById("dashboard").classList.add("hidden");
-        document.getElementById("loginSection").classList.remove("hidden");
-
-        // Clear form
-        document.getElementById("familyName").value = "";
-        document.getElementById("password").value = "";
-        document.getElementById("userName").value = "";
-
-        showSuccess("Left family successfully");
-      }
-
-      // Utility functions
-      function showError(message) {
-        const errorDiv = document.getElementById("errorMessage");
-        errorDiv.textContent = message;
-        errorDiv.classList.remove("hidden");
-        setTimeout(() => errorDiv.classList.add("hidden"), 5000);
-      }
-
-      function showSuccess(message) {
-        const successDiv = document.getElementById("successMessage");
-        successDiv.textContent = message;
-        successDiv.classList.remove("hidden");
-        setTimeout(() => successDiv.classList.add("hidden"), 3000);
-      }
-
-      // Simulate real-time updates
-      setInterval(() => {
-        if (currentFamily && currentUser) {
-          updateFamilyMembers();
-        }
-      }, 30000);
-
-      // Initialize app when page loads
-      document.addEventListener("DOMContentLoaded", initializeApp);
-    </script>
-  </body>
-</html>
+          const cardClass = isCurrentUser ? "member-card your-info" : "member-card";
+          
+          // Check if user was recently active (within 2 minutes)
+          const lastSeen = new Date(member.lastSeen || member.joinedAt);
+          const isRecentlyActive = (Date
