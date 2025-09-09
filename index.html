@@ -446,6 +446,17 @@
         >
           Leave Family Network
         </button>
+
+        <!-- Added clear data button for easy reset -->
+        <div style="margin-bottom: 20px">
+          <button
+            class="btn btn-danger"
+            onclick="clearAllData()"
+            style="background: #dc3545; font-size: 14px; padding: 8px 16px"
+          >
+            Clear All Data & Reset
+          </button>
+        </div>
       </div>
     </div>
 
@@ -493,35 +504,42 @@
         try {
           console.log("[v0] Saving family data to cloud:", familyData.familyId);
 
-          const binName = getFamilyBinId(familyData.familyId);
+          const predictableBinName = `family-${familyData.familyId
+            .replace(/[^a-zA-Z0-9]/g, "")
+            .toLowerCase()}`;
 
-          // Try to update existing bin first
           let binId = localStorage.getItem(`binId_${familyData.familyId}`);
 
-          if (binId) {
-            // Update existing bin
-            const updateResponse = await fetch(`${JSONBIN_BASE_URL}/${binId}`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": JSONBIN_API_KEY,
-              },
-              body: JSON.stringify(familyData),
-            });
-
-            if (updateResponse.ok) {
-              console.log("[v0] Family data updated successfully in cloud");
-              return familyData;
-            }
+          if (!binId) {
+            const hashCode = familyData.familyId.split("").reduce((a, b) => {
+              a = (a << 5) - a + b.charCodeAt(0);
+              return a & a;
+            }, 0);
+            binId = `family${Math.abs(hashCode).toString(36)}`;
+            console.log("[v0] Generated consistent bin ID:", binId);
           }
 
-          // Create new bin if update failed or no bin ID exists
+          const updateResponse = await fetch(`${JSONBIN_BASE_URL}/${binId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Master-Key": JSONBIN_API_KEY,
+            },
+            body: JSON.stringify(familyData),
+          });
+
+          if (updateResponse.ok) {
+            console.log("[v0] Family data updated successfully in cloud");
+            localStorage.setItem(`binId_${familyData.familyId}`, binId);
+            return familyData;
+          }
+
           const response = await fetch(`${JSONBIN_BASE_URL}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Master-Key": JSONBIN_API_KEY,
-              "X-Bin-Name": binName,
+              "X-Bin-Name": predictableBinName,
               "X-Bin-Private": "false",
             },
             body: JSON.stringify(familyData),
@@ -533,7 +551,6 @@
 
           const result = await response.json();
 
-          // Store the bin ID for future access
           localStorage.setItem(
             `binId_${familyData.familyId}`,
             result.metadata.id
@@ -562,12 +579,46 @@
 
           if (!binId) {
             console.log(
-              "[v0] No bin ID found locally, trying to find family in cloud..."
+              "[v0] No bin ID found locally, searching for family in cloud..."
             );
 
-            // For now, return null and let the user know the family wasn't found
-            // In a production app, you'd implement a proper search mechanism
-            throw new Error("Family not found in cloud storage");
+            const predictableBinName = `family-${familyId
+              .replace(/[^a-zA-Z0-9]/g, "")
+              .toLowerCase()}`;
+
+            try {
+              const searchResponse = await fetch(`${JSONBIN_BASE_URL}`, {
+                method: "GET",
+                headers: {
+                  "X-Master-Key": JSONBIN_API_KEY,
+                },
+              });
+
+              if (searchResponse.ok) {
+                const bins = await searchResponse.json();
+                console.log("[v0] Searching through available bins...");
+
+                for (const bin of bins.record || []) {
+                  if (bin.name && bin.name.includes(predictableBinName)) {
+                    binId = bin.id;
+                    localStorage.setItem(`binId_${familyId}`, binId);
+                    console.log("[v0] Found family bin:", binId);
+                    break;
+                  }
+                }
+              }
+            } catch (searchError) {
+              console.log("[v0] Bin search failed, trying direct access");
+            }
+
+            if (!binId) {
+              const hashCode = familyId.split("").reduce((a, b) => {
+                a = (a << 5) - a + b.charCodeAt(0);
+                return a & a;
+              }, 0);
+              binId = `family${Math.abs(hashCode).toString(36)}`;
+              console.log("[v0] Using generated bin ID:", binId);
+            }
           }
 
           const response = await fetch(`${JSONBIN_BASE_URL}/${binId}/latest`, {
@@ -588,6 +639,8 @@
 
           const result = await response.json();
           console.log("[v0] Family data loaded successfully from cloud");
+
+          localStorage.setItem(`binId_${familyId}`, binId);
           localStorage.setItem("familyDataSource", "cloud");
           return result.record;
         } catch (error) {
@@ -617,7 +670,6 @@
         try {
           showMessage("Creating family...", "info");
 
-          // Check if family already exists
           const existingFamily = await loadFamilyData(familyName);
           if (existingFamily) {
             showMessage(
@@ -627,19 +679,15 @@
             return;
           }
 
-          // Create new family
           const familyData = createFamilyData(familyName, password, userName);
           await saveFamilyData(familyData);
 
-          // Set current user and family
           currentUser = familyData.members[0];
           currentFamily = familyName;
           currentFamilyData = familyData;
 
-          // Save session
           saveSession();
 
-          // Show dashboard
           document.getElementById("loginSection").classList.add("hidden");
           document.getElementById("dashboard").classList.remove("hidden");
 
@@ -684,17 +732,14 @@
             return;
           }
 
-          // Check if user already exists
           const existingUser = familyData.members.find(
             (m) => m.name === userName
           );
           if (existingUser) {
-            // User rejoining
             currentUser = existingUser;
             currentUser.isOnline = true;
             currentUser.lastSeen = new Date().toISOString();
           } else {
-            // New user joining
             const newUser = {
               id: Date.now(),
               name: userName,
@@ -710,13 +755,10 @@
           currentFamily = familyName;
           currentFamilyData = familyData;
 
-          // Save updated family data
           await saveFamilyData(currentFamilyData);
 
-          // Save session
           saveSession();
 
-          // Show dashboard
           document.getElementById("loginSection").classList.add("hidden");
           document.getElementById("dashboard").classList.remove("hidden");
 
@@ -732,11 +774,9 @@
       }
 
       function getFamilyBinId(familyId) {
-        // Create a consistent bin ID based on family ID
         return `family-${familyId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`;
       }
 
-      // Initialize app
       function initializeApp() {
         console.log("[v0] Initializing app");
 
@@ -752,16 +792,13 @@
                 currentFamilyData = familyData;
                 isLocationSharing = savedSession.isLocationSharing || false;
 
-                // Hide login section and show dashboard
                 document.getElementById("loginSection").classList.add("hidden");
                 document.getElementById("dashboard").classList.remove("hidden");
 
-                // Show family ID
                 displayFamilyId();
 
                 updateLocationSharingStatus();
 
-                // Restore location sharing if it was active
                 if (isLocationSharing) {
                   startLocationSharing();
                 }
@@ -817,11 +854,9 @@
               timestamp: new Date().toISOString(),
             };
 
-            // Update current user location
             currentUser.location = location;
             isLocationSharing = true;
 
-            // Update in family data
             if (currentFamilyData) {
               const userIndex = currentFamilyData.members.findIndex(
                 (m) => m.name === currentUser.name
@@ -836,7 +871,6 @@
               await saveFamilyData(currentFamilyData);
             }
 
-            // Save session
             saveSession();
 
             enableBtn.textContent = "Enable Location Sharing";
@@ -886,7 +920,6 @@
         isLocationSharing = false;
         currentUser.location = null;
 
-        // Update in family data
         if (currentFamilyData) {
           const userIndex = currentFamilyData.members.findIndex(
             (m) => m.name === currentUser.name
@@ -900,7 +933,6 @@
           await saveFamilyData(currentFamilyData);
         }
 
-        // Save session
         saveSession();
 
         updateLocationSharingStatus();
@@ -910,19 +942,16 @@
       async function leaveFamily() {
         console.log("[v0] Leaving family");
 
-        // Stop location sharing
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
           watchId = null;
         }
 
-        // Stop sync
         if (syncInterval) {
           clearInterval(syncInterval);
           syncInterval = null;
         }
 
-        // Clean up maps
         Object.values(leafletMaps).forEach((map) => {
           if (map) {
             map.remove();
@@ -930,20 +959,16 @@
         });
         leafletMaps = {};
 
-        // Clear session
         localStorage.removeItem("familySafetySession");
 
-        // Reset state
         currentUser = null;
         currentFamily = null;
         currentFamilyData = null;
         isLocationSharing = false;
 
-        // Show login section
         document.getElementById("dashboard").classList.add("hidden");
         document.getElementById("loginSection").classList.remove("hidden");
 
-        // Clear form
         document.getElementById("familyId").value = "";
         document.getElementById("password").value = "";
         document.getElementById("userName").value = "";
@@ -951,7 +976,6 @@
         showMessage("Left family successfully", "success");
       }
 
-      // Utility functions
       function showMessage(message, type) {
         const messageDiv = document.getElementById("message");
         messageDiv.textContent = message;
@@ -998,7 +1022,6 @@
             showMessage("Family details copied to clipboard!", "success");
           });
         } else {
-          // Fallback - show the text in an alert
           alert(shareText);
         }
       }
@@ -1010,7 +1033,6 @@
 
         const membersContainer = document.getElementById("familyMembers");
 
-        // Clean up existing maps
         Object.values(leafletMaps).forEach((map) => {
           if (map) {
             map.remove();
@@ -1025,7 +1047,6 @@
             ? "member-card your-info"
             : "member-card";
 
-          // Check if user was recently active (within 2 minutes)
           const lastSeen = new Date(member.lastSeen || member.joinedAt);
           const isRecentlyActive = Date.now() - lastSeen.getTime() < 120000;
 
@@ -1060,7 +1081,6 @@
 
         membersContainer.innerHTML = membersHTML;
 
-        // Initialize maps after DOM update
         setTimeout(() => {
           initializeLeafletMaps();
         }, 200);
@@ -1078,7 +1098,6 @@
               try {
                 console.log(`[v0] Creating map for member ${member.name}`);
 
-                // Ensure container has proper dimensions
                 mapContainer.style.height = "320px";
                 mapContainer.style.width = "100%";
 
@@ -1096,7 +1115,6 @@
                   }
                 ).addTo(map);
 
-                // Create custom marker
                 const marker = L.marker([
                   member.location.lat,
                   member.location.lng,
@@ -1106,10 +1124,8 @@
                     `<strong>${member.name}</strong><br>${member.location.address}`
                   );
 
-                // Store map reference
                 leafletMaps[member.id] = map;
 
-                // Force map to resize properly
                 setTimeout(() => {
                   map.invalidateSize();
                 }, 100);
@@ -1130,9 +1146,8 @@
         if (syncInterval) clearInterval(syncInterval);
 
         syncInterval = setInterval(async () => {
-          if (currentFamily && currentFamilyData) {
+          if (currentFamily && currentUser && currentFamilyData) {
             try {
-              // Update current user's status
               const userIndex = currentFamilyData.members.findIndex(
                 (m) => m.name === currentUser.name
               );
@@ -1146,10 +1161,8 @@
                 }
               }
 
-              // Save current data
               await saveFamilyData(currentFamilyData);
 
-              // Fetch latest data
               const latestData = await loadFamilyData(currentFamily);
               if (
                 latestData &&
@@ -1157,7 +1170,6 @@
               ) {
                 currentFamilyData = latestData;
 
-                // Find current user in updated data
                 const updatedUser = currentFamilyData.members.find(
                   (m) => m.name === currentUser.name
                 );
@@ -1171,10 +1183,9 @@
               console.error("[v0] Sync error:", error);
             }
           }
-        }, 10000); // Sync every 10 seconds
+        }, 10000);
       }
 
-      // Save session to localStorage
       function saveSession() {
         const session = {
           currentUser,
@@ -1183,6 +1194,68 @@
         };
         localStorage.setItem("familySafetySession", JSON.stringify(session));
         console.log("[v0] Session saved");
+      }
+
+      function showLogin() {
+        document.getElementById("dashboard").classList.add("hidden");
+        document.getElementById("loginSection").classList.remove("hidden");
+      }
+
+      async function clearAllData() {
+        if (
+          !confirm(
+            "Are you sure you want to clear all family data? This cannot be undone."
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (
+              key.startsWith("family_") ||
+              key.startsWith("binId_") ||
+              key === "familySafetySession" ||
+              key === "familyDataSource"
+            ) {
+              keysToRemove.push(key);
+            }
+          }
+
+          keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+          currentUser = null;
+          currentFamily = null;
+          currentFamilyData = null;
+          isLocationSharing = false;
+
+          if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+          }
+
+          if (syncInterval) {
+            clearInterval(syncInterval);
+            syncInterval = null;
+          }
+
+          Object.values(leafletMaps).forEach((map) => {
+            if (map) {
+              map.remove();
+            }
+          });
+          leafletMaps = {};
+
+          showLogin();
+
+          alert("All data cleared successfully! You can now start fresh.");
+          console.log("[v0] All family data cleared successfully");
+        } catch (error) {
+          console.error("[v0] Error clearing data:", error);
+          alert("Error clearing data. Please try again.");
+        }
       }
 
       setInterval(async () => {
@@ -1202,7 +1275,6 @@
         }
       }, 30000);
 
-      // Initialize app when page loads
       document.addEventListener("DOMContentLoaded", initializeApp);
     </script>
   </body>
